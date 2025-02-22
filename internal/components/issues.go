@@ -1,0 +1,128 @@
+package components
+
+import (
+	"strconv"
+	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/google/go-github/v69/github"
+)
+
+var (
+	issuesTableStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("62"))
+	listItemStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFF"))
+	selectedListItemStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("62")).
+				Foreground(lipgloss.Color("#FFF"))
+)
+
+type IssuesModel struct {
+	width              int
+	height             int
+	issues             []*github.Issue
+	viewportStartIndex int
+	cursorIndex        int
+}
+
+func NewIssuesModel(width int, height int) IssuesModel {
+	// Accounting for border width
+	return IssuesModel{width: width - 2, height: height - 2}
+}
+
+func (m *IssuesModel) SetWidth(width int) {
+	m.width = width
+}
+
+func (m *IssuesModel) SetIssues(issues []*github.Issue) {
+	m.issues = issues
+}
+
+func (m *IssuesModel) ResetViewport() {
+	m.viewportStartIndex = 0
+	m.cursorIndex = 0
+}
+
+func (m IssuesModel) GetSelectedIssue() *github.Issue {
+	return m.issues[m.cursorIndex]
+}
+
+func (m IssuesModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m IssuesModel) Update(msg tea.Msg) (IssuesModel, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch keypress := msg.String(); keypress {
+		case "j":
+			m.cursorIndex = min(len(m.issues)-1, m.cursorIndex+1)
+			if m.cursorIndex >= m.viewportStartIndex+m.height {
+				m.viewportStartIndex = m.viewportStartIndex + 1
+				if m.viewportStartIndex+m.height > len(m.issues) {
+					m.viewportStartIndex = len(m.issues) - m.height
+				}
+			}
+			return m, nil
+		case "k":
+			m.cursorIndex = max(0, m.cursorIndex-1)
+			if m.cursorIndex < m.viewportStartIndex {
+				m.viewportStartIndex = m.cursorIndex
+			}
+			return m, nil
+		case "H":
+			m.cursorIndex = m.viewportStartIndex
+			return m, nil
+		case "L":
+			m.cursorIndex = m.viewportStartIndex + m.height - 1
+			return m, nil
+		case "g":
+			m.cursorIndex = 0
+			m.viewportStartIndex = 0
+			return m, nil
+		case "G":
+			m.cursorIndex = len(m.issues) - 1
+			m.viewportStartIndex = max(0, len(m.issues)-m.height)
+			return m, nil
+		}
+	}
+
+	return m, nil
+}
+
+func (m IssuesModel) View() string {
+	doc := strings.Builder{}
+
+	for i := 0; i < m.height; i++ {
+		if i+m.viewportStartIndex > len(m.issues) {
+			// Fill in blank space
+			for j := i; j < m.height; j++ {
+				doc.WriteString("\n")
+			}
+			break
+		}
+
+		issue := m.issues[i+m.viewportStartIndex]
+		var listStyle lipgloss.Style
+		if i+m.viewportStartIndex == m.cursorIndex {
+			listStyle = selectedListItemStyle
+		} else {
+			listStyle = listItemStyle
+		}
+		listStyle = listStyle.Width(m.width)
+
+		issueString := strconv.Itoa(*issue.Number) + " " + *issue.Title
+		if len(issueString) >= m.width {
+			issueString = issueString[:m.width-1]
+		}
+		doc.WriteString(listStyle.Render(issueString))
+	}
+
+	style := issuesTableStyle.
+		Width(m.width).
+		Height(m.height)
+	return style.Render(doc.String())
+}

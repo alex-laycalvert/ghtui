@@ -4,28 +4,46 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/go-github/v69/github"
 	"golang.org/x/term"
+
+	"github.com/alex-laycalvert/gtui/internal/components"
 )
 
-const START_ROW = 3
+const START_ROW = 2
+
+var selectedIssueGlamourStyle = lipgloss.NewStyle().
+	Border(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("62")).
+	PaddingRight(2)
+
+var issuesTableStyle = lipgloss.NewStyle().
+	Background(lipgloss.Color("#000")).
+	Foreground(lipgloss.Color("#FFF")).
+	Border(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("62"))
+
+const borderWidth = 1
 
 type model struct {
-	repo               string
-	issues             []*github.Issue
-	currentPage        int
-	lastPage           int
-	cursorIndex        int
-	viewportStartIndex int
-	selectedIssueIndex int
-	client             *github.Client
+	repo        string
+	issues      []*github.Issue
+	currentPage int
+	lastPage    int
+	client      *github.Client
 
 	width, height int
+
+	selectedIssue         *github.Issue
+	selectedIssueViewport viewport.Model
+	selectedIssueRenderer *glamour.TermRenderer
+
+	issuesComponent components.IssuesModel
 }
 
 func main() {
@@ -42,14 +60,27 @@ func main() {
 	checkErr(err)
 
 	m := model{
-		repo:               repo,
-		client:             client,
-		width:              width,
-		height:             height,
-		currentPage:        1,
-		selectedIssueIndex: -1,
+		repo:        repo,
+		client:      client,
+		width:       width,
+		height:      height,
+		currentPage: 1,
+
+		// Height offset comes from header component
+		issuesComponent: components.NewIssuesModel(width, height-1),
 	}
 	err = m.fetchIssues()
+	checkErr(err)
+
+	m.selectedIssueViewport = viewport.New(m.width/2-borderWidth*2, m.height-START_ROW-1)
+	m.selectedIssueViewport.Style = selectedIssueGlamourStyle
+	glamourRenderWidth := m.width/2 - m.selectedIssueViewport.Style.GetHorizontalFrameSize() - borderWidth*2
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(glamourRenderWidth),
+	)
+	m.selectedIssueRenderer = renderer
+
 	checkErr(err)
 
 	_, err = tea.NewProgram(m).Run()
@@ -67,21 +98,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "j":
-			m.cursorIndex = min(m.cursorIndex+1, len(m.issues)-1)
-			if m.cursorIndex > m.viewportStartIndex+m.height-START_ROW-2 {
-				m.viewportStartIndex = min(m.viewportStartIndex+1, len(m.issues)-(m.height-START_ROW-1))
+			if m.selectedIssue != nil {
+				m.selectedIssueViewport, _ = m.selectedIssueViewport.Update(msg)
+				return m, nil
 			}
+
+			m.issuesComponent, _ = m.issuesComponent.Update(msg)
 			return m, nil
 		case "k":
-			m.cursorIndex = max(m.cursorIndex-1, 0)
-			if m.cursorIndex < m.viewportStartIndex {
-				m.viewportStartIndex = m.cursorIndex
+			if m.selectedIssue != nil {
+				m.selectedIssueViewport, _ = m.selectedIssueViewport.Update(msg)
+				return m, nil
 			}
+
+			m.issuesComponent, _ = m.issuesComponent.Update(msg)
 			return m, nil
 		case "h":
-			m.cursorIndex = 0
-			m.viewportStartIndex = 0
-			m.selectedIssueIndex = -1
+			if m.selectedIssue != nil {
+				return m, nil
+			}
+
+			m.issuesComponent.ResetViewport()
+			m.selectedIssue = nil
 			if m.currentPage == 1 {
 				return m, nil
 			}
@@ -90,9 +128,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			checkErr(err)
 			return m, nil
 		case "l":
-			m.cursorIndex = 0
-			m.viewportStartIndex = 0
-			m.selectedIssueIndex = -1
+			if m.selectedIssue != nil {
+				return m, nil
+			}
+
+			m.issuesComponent.ResetViewport()
+			m.selectedIssue = nil
 			if m.currentPage == m.lastPage {
 				return m, nil
 			}
@@ -101,24 +142,47 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			checkErr(err)
 			return m, nil
 		case "g":
-			m.cursorIndex = 0
-			m.viewportStartIndex = 0
+			if m.selectedIssue != nil {
+				m.selectedIssueViewport.GotoTop()
+				return m, nil
+			}
+
+			m.issuesComponent, _ = m.issuesComponent.Update(msg)
 			return m, nil
 		case "G":
-			m.cursorIndex = len(m.issues) - 1
-			m.viewportStartIndex = len(m.issues) - m.height + START_ROW + 1
+			if m.selectedIssue != nil {
+				m.selectedIssueViewport.GotoBottom()
+				return m, nil
+			}
+
+			m.issuesComponent, _ = m.issuesComponent.Update(msg)
 			return m, nil
 		case "H":
-			m.cursorIndex = m.viewportStartIndex
+			if m.selectedIssue != nil {
+				m.selectedIssueViewport, _ = m.selectedIssueViewport.Update(msg)
+				return m, nil
+			}
+
+			m.issuesComponent, _ = m.issuesComponent.Update(msg)
 			return m, nil
 		case "L":
-			m.cursorIndex = min(m.viewportStartIndex+m.height-START_ROW-2, len(m.issues)-1)
+			if m.selectedIssue != nil {
+				m.selectedIssueViewport, _ = m.selectedIssueViewport.Update(msg)
+				return m, nil
+			}
+
+			m.issuesComponent, _ = m.issuesComponent.Update(msg)
 			return m, nil
 		case "enter":
-			m.selectedIssueIndex = m.cursorIndex
+			m.selectedIssue = m.issuesComponent.GetSelectedIssue()
+			m.issuesComponent.SetWidth(m.width / 2)
+			str, err := m.selectedIssueRenderer.Render(*m.selectedIssue.Body)
+			checkErr(err)
+			m.selectedIssueViewport.SetContent(str)
 			return m, nil
 		case "esc":
-			m.selectedIssueIndex = -1
+			m.selectedIssue = nil
+			m.issuesComponent.SetWidth(m.width)
 			return m, nil
 		}
 	}
@@ -127,72 +191,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	maxRow := m.height - START_ROW - 1
-
-	tableWidth := m.width
-	if m.selectedIssueIndex != -1 {
-		tableWidth = m.width / 2
-	}
-
-	headerStyle := issueListItemStyle(m.width)
-	headerContent := fmt.Sprintf(`
-Repo: %s\tPage: %d
-
-`, m.repo, m.currentPage)
-	header := headerStyle.Render(headerContent)
-
-	list := strings.Builder{}
-	for i := 0; i < maxRow; i++ {
-		if i+m.viewportStartIndex >= len(m.issues) {
-			style := issueListItemStyle(tableWidth)
-			// Fill in blank space
-			for j := i; j < maxRow; j++ {
-				list.WriteString(style.Render("\n"))
-			}
-			break
-		}
-
-		issue := m.issues[i+m.viewportStartIndex]
-		var listStyle lipgloss.Style
-		if i+m.viewportStartIndex == m.cursorIndex {
-			listStyle = selectedIssueListItemStyle(tableWidth)
-		} else {
-			listStyle = issueListItemStyle(tableWidth)
-		}
-
-		issueString := strconv.Itoa(*issue.Number) + " " + *issue.Title
-		if len(issueString) >= tableWidth {
-			issueString = issueString[:tableWidth-3] + "..."
-		}
-		list.WriteString(listStyle.Render(issueString) + "\n")
-	}
-
-	selectedIssueContent := ""
-	if m.selectedIssueIndex != -1 {
-		selectedIssue := m.issues[m.selectedIssueIndex]
-		style := lipgloss.NewStyle().Width(tableWidth).Height(m.height-START_ROW-2).Background(lipgloss.Color("#0F0")).Foreground(lipgloss.Color("#000")).Border(lipgloss.NormalBorder(), true)
-		lines := strings.Split(*selectedIssue.Body, "\n")
-		lines = lines[:min(len(lines), m.height-START_ROW-4)]
-		for i := 0; i < len(lines); i++ {
-			if len(lines[i]) >= tableWidth-1 {
-				lines[i] = lines[i][:tableWidth-1]
-			}
-		}
-
-		body := strings.Join(lines, "\n")
-		selectedIssueContent = style.Render(body)
-	}
-
 	view := lipgloss.JoinVertical(
 		lipgloss.Left,
-		header,
+		m.Header(),
 		lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			list.String(),
-			selectedIssueContent,
+			m.issuesComponent.View(),
+			m.SelectedIssue(),
 		))
 
 	return view
+}
+
+func (m model) Header() string {
+	return m.repo
+}
+
+func (m model) SelectedIssue() string {
+	if m.selectedIssue != nil {
+		return m.selectedIssueViewport.View()
+	}
+	return ""
 }
 
 func (m *model) fetchIssues() error {
@@ -206,16 +225,9 @@ func (m *model) fetchIssues() error {
 		return err
 	}
 	m.issues = result.Issues
+	m.issuesComponent.SetIssues(m.issues)
 	m.lastPage = response.LastPage
 	return nil
-}
-
-func issueListItemStyle(width int) lipgloss.Style {
-	return lipgloss.NewStyle().Width(width).Background(lipgloss.Color("#000")).Foreground(lipgloss.Color("#FFF"))
-}
-
-func selectedIssueListItemStyle(width int) lipgloss.Style {
-	return lipgloss.NewStyle().Width(width).Background(lipgloss.Color("#FFF")).Foreground(lipgloss.Color("#000"))
 }
 
 func checkErr(err error) {
