@@ -84,7 +84,7 @@ func NewIssuesPage(client *github.Client, repo string, width int, height int) Is
 			issuesList: components.NewIssuesModel(width, height-1),
 		},
 	}
-	m.selectedIssueViewport = viewport.New(m.width/2-borderWidth*2, m.height-startRow-1)
+	m.selectedIssueViewport = viewport.New(m.width/2-borderWidth*2, m.height-1)
 	m.selectedIssueViewport.Style = selectedIssueGlamourStyle
 	glamourRenderWidth := m.width/2 - m.selectedIssueViewport.Style.GetHorizontalFrameSize() - borderWidth*2
 	renderer, err := glamour.NewTermRenderer(
