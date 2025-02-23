@@ -105,7 +105,7 @@ func (m IssuesListModel) View() string {
 	for i := 0; i < m.height; i++ {
 		if i+m.viewportStartIndex >= len(m.issues) {
 			// Fill in blank space
-			for j := i; j < m.height; j++ {
+			for j := i; j < m.height-1; j++ {
 				doc.WriteString("\n")
 			}
 			break
