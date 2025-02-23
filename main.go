@@ -10,9 +10,9 @@ import (
 	"github.com/google/go-github/v69/github"
 	"golang.org/x/term"
 
-	"github.com/alex-laycalvert/gtui/internal/components"
-	"github.com/alex-laycalvert/gtui/internal/pages/issues"
-	"github.com/alex-laycalvert/gtui/internal/pages/repo"
+	"github.com/alex-laycalvert/ghtui/internal/components"
+	"github.com/alex-laycalvert/ghtui/internal/pages/issues"
+	"github.com/alex-laycalvert/ghtui/internal/pages/repo"
 )
 
 type model struct {

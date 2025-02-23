@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/go-github/v69/github"
 
-	"github.com/alex-laycalvert/gtui/internal/components"
-	"github.com/alex-laycalvert/gtui/internal/utils"
+	"github.com/alex-laycalvert/ghtui/internal/components"
+	"github.com/alex-laycalvert/ghtui/internal/utils"
 )
 
 const (

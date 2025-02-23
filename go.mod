@@ -1,4 +1,4 @@
-module github.com/alex-laycalvert/gtui
+module github.com/alex-laycalvert/ghtui
 
 go 1.24.0
 
@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/google/go-github/v69 v69.2.0
+	golang.org/x/term v0.29.0
 )
 
 require (
@@ -35,6 +36,5 @@ require (
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/term v0.29.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 )
