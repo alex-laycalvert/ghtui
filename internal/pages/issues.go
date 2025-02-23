@@ -35,12 +35,10 @@ type IssuesReadyMsg struct {
 	lastIssuesPage int
 }
 
-type Component int
-
 const (
-	SpinnerComponent Component = iota
-	SelectedIssueComponent
-	IssuesListComponent
+	SpinnerComponent       components.ComponentName = "spinner"
+	SelectedIssueComponent components.ComponentName = "selectedIssue"
+	IssuesListComponent    components.ComponentName = "issuesList"
 )
 
 type IssuesPageComponents struct {
@@ -74,9 +72,9 @@ func NewIssuesPage(client *github.Client, repo string, width int, height int) Is
 		height:            height,
 		currentIssuesPage: 1,
 		components: components.NewComponentGroup([]components.Component{
-			components.NameComponent("selectedIssue", selectedIssue),
-			components.NameComponent("spinner", components.NewSpinnerComponent()),
-			components.NameComponent("issuesList", components.NewIssuesListComponent(width, height-1)),
+			components.NameComponent(SelectedIssueComponent, selectedIssue),
+			components.NameComponent(SpinnerComponent, components.NewSpinnerComponent()),
+			components.NameComponent(IssuesListComponent, components.NewIssuesListComponent(width, height-1)),
 		}),
 	}
 	checkErr(err)
@@ -97,18 +95,18 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch keypress := msg.String(); keypress {
 		case "enter":
 			issue := m.getSelectedIssue()
-			m.components.Update("issuesList", components.IssuesListUpdateWidthMsg{
+			m.components.Update(IssuesListComponent, components.IssuesListUpdateWidthMsg{
 				Width: m.width / 2,
 			})
-			m.components.Update("selectedIssue", components.IssueSetIssueMsg{
+			m.components.Update(SelectedIssueComponent, components.IssueSetIssueMsg{
 				Issue: issue,
 			})
 			return m, nil
 		case "esc":
-			m.components.Update("issuesList", components.IssuesListUpdateWidthMsg{
+			m.components.Update(IssuesListComponent, components.IssuesListUpdateWidthMsg{
 				Width: m.width,
 			})
-			m.components.Update("selectedIssue", components.IssueSetIssueMsg{
+			m.components.Update(SelectedIssueComponent, components.IssueSetIssueMsg{
 				Issue: nil,
 			})
 			return m, nil
@@ -120,7 +118,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentIssuesPage == 1 {
 				return m, nil
 			}
-			m.components.Update("issuesList", components.IssuesListResetViewportMsg{})
+			m.components.Update(IssuesListComponent, components.IssuesListResetViewportMsg{})
 			m.currentIssuesPage--
 			return m, m.fetchIssues(m.currentIssuesPage)
 		case "]":
@@ -131,7 +129,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentIssuesPage >= m.lastIssuesPage {
 				return m, nil
 			}
-			m.components.Update("issuesList", components.IssuesListResetViewportMsg{})
+			m.components.Update(IssuesListComponent, components.IssuesListResetViewportMsg{})
 			m.currentIssuesPage++
 			return m, m.fetchIssues(m.currentIssuesPage)
 		case "{":
@@ -142,7 +140,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentIssuesPage == 1 {
 				return m, nil
 			}
-			m.components.Update("issuesList", components.IssuesListResetViewportMsg{})
+			m.components.Update(IssuesListComponent, components.IssuesListResetViewportMsg{})
 			m.currentIssuesPage = 1
 			return m, m.fetchIssues(m.currentIssuesPage)
 		case "}":
@@ -153,7 +151,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentIssuesPage >= m.lastIssuesPage {
 				return m, nil
 			}
-			m.components.Update("issuesList", components.IssuesListResetViewportMsg{})
+			m.components.Update(IssuesListComponent, components.IssuesListResetViewportMsg{})
 			m.currentIssuesPage = m.lastIssuesPage
 			return m, m.fetchIssues(m.currentIssuesPage)
 		default:
@@ -163,13 +161,13 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case IssuesReadyMsg:
 		m.lastIssuesPage = msg.lastIssuesPage
 		m.state = ReadyState
-		m.components.Update("issuesList", components.IssuesListUpdateIssuesMsg{
+		m.components.Update(IssuesListComponent, components.IssuesListUpdateIssuesMsg{
 			Issues: msg.issues,
 		})
-		m.components.FocusOn("issuesList")
+		m.components.FocusOn(IssuesListComponent)
 		return m, nil
 	default:
-		cmd := m.components.Update("spinner", msg)
+		cmd := m.components.Update(SpinnerComponent, msg)
 		return m, cmd
 	}
 }
@@ -194,12 +192,12 @@ func (m IssuesPageModel) body() string {
 		return borderedPageStyle.
 			Width(m.width - 2).
 			Height(m.height - startRow - 1).
-			Render(fmt.Sprintf("%s Loading Issues from %s", m.components.GetComponent("spinner").View(), m.repo))
+			Render(fmt.Sprintf("%s Loading Issues from %s", m.components.GetComponent(SpinnerComponent).View(), m.repo))
 	case ReadyState:
 		return lipgloss.JoinHorizontal(
 			lipgloss.Top,
-			m.components.GetComponent("issuesList").View(),
-			m.components.GetComponent("selectedIssue").View(),
+			m.components.GetComponent(IssuesListComponent).View(),
+			m.components.GetComponent(SelectedIssueComponent).View(),
 		)
 	default:
 		return ""
@@ -230,14 +228,14 @@ func (m *IssuesPageModel) fetchIssues(page int) tea.Cmd {
 // TODO: maybe make this a msg that is sent to this component?
 func (m IssuesPageModel) getSelectedIssue() *github.Issue {
 	return m.components.
-		GetComponent("issuesList").(components.NamedComponent[components.IssuesListModel]).
+		GetComponent(IssuesListComponent).(components.NamedComponent[components.IssuesListModel]).
 		Component.GetSelectedIssue()
 }
 
 // TODO: maybe make this a msg that is sent to this component?
 func (m IssuesPageModel) getDisplayedIssue() *github.Issue {
 	return m.components.
-		GetComponent("selectedIssue").(components.NamedComponent[components.IssueModel]).
+		GetComponent(SelectedIssueComponent).(components.NamedComponent[components.IssueModel]).
 		Component.GetIssue()
 }
 

@@ -4,10 +4,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type ComponentName string
+
 type Component interface {
 	tea.Model
 
-	Name() string
+	Name() ComponentName
 }
 
 type ComponentGroup struct {
@@ -17,11 +19,10 @@ type ComponentGroup struct {
 
 func NewComponentGroup(components []Component) ComponentGroup {
 	group := ComponentGroup{components: components}
-
 	return group
 }
 
-func (c ComponentGroup) GetComponent(name string) Component {
+func (c ComponentGroup) GetComponent(name ComponentName) Component {
 	for _, comp := range c.components {
 		if comp.Name() == name {
 			return comp
@@ -38,7 +39,7 @@ func (c ComponentGroup) Init() tea.Cmd {
 	return tea.Batch(initCmds...)
 }
 
-func (c *ComponentGroup) Update(name string, msg tea.Msg) tea.Cmd {
+func (c *ComponentGroup) Update(name ComponentName, msg tea.Msg) tea.Cmd {
 	for i, comp := range c.components {
 		if comp.Name() == name {
 			m, cmd := comp.Update(msg)
@@ -66,7 +67,7 @@ func (c ComponentGroup) GetFocusedComponent() Component {
 	return c.components[c.focus]
 }
 
-func (c *ComponentGroup) FocusOn(name string) {
+func (c *ComponentGroup) FocusOn(name ComponentName) {
 	for i, comp := range c.components {
 		if comp.Name() == name {
 			c.focus = i
@@ -75,7 +76,7 @@ func (c *ComponentGroup) FocusOn(name string) {
 	}
 }
 
-func NameComponent[T tea.Model](name string, component T) NamedComponent[T] {
+func NameComponent[T tea.Model](name ComponentName, component T) NamedComponent[T] {
 	return NamedComponent[T]{
 		name,
 		component,
@@ -83,11 +84,11 @@ func NameComponent[T tea.Model](name string, component T) NamedComponent[T] {
 }
 
 type NamedComponent[T tea.Model] struct {
-	name      string
+	name      ComponentName
 	Component T
 }
 
-func (w NamedComponent[T]) Name() string {
+func (w NamedComponent[T]) Name() ComponentName {
 	return w.name
 }
 
