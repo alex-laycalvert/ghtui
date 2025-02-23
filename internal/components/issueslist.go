@@ -20,7 +20,7 @@ var (
 				Foreground(lipgloss.Color("#FFF"))
 )
 
-type IssuesModel struct {
+type IssuesListModel struct {
 	width              int
 	height             int
 	issues             []*github.Issue
@@ -28,33 +28,30 @@ type IssuesModel struct {
 	cursorIndex        int
 }
 
-func NewIssuesModel(width int, height int) IssuesModel {
+type IssuesListUpdateWidthMsg struct {
+	Width int
+}
+
+type IssuesListUpdateIssuesMsg struct {
+	Issues []*github.Issue
+}
+
+type IssuesListResetViewportMsg struct{}
+
+func NewIssuesListComponent(width int, height int) IssuesListModel {
 	// Accounting for border width
-	return IssuesModel{width: width - 2, height: height - 2}
+	return IssuesListModel{width: width - 2, height: height - 2}
 }
 
-func (m *IssuesModel) SetWidth(width int) {
-	m.width = width
-}
-
-func (m *IssuesModel) SetIssues(issues []*github.Issue) {
-	m.issues = issues
-}
-
-func (m *IssuesModel) ResetViewport() {
-	m.viewportStartIndex = 0
-	m.cursorIndex = 0
-}
-
-func (m IssuesModel) GetSelectedIssue() *github.Issue {
+func (m IssuesListModel) GetSelectedIssue() *github.Issue {
 	return m.issues[m.cursorIndex]
 }
 
-func (m IssuesModel) Init() tea.Cmd {
+func (m IssuesListModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m IssuesModel) Update(msg tea.Msg) (IssuesModel, tea.Cmd) {
+func (m IssuesListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
@@ -88,16 +85,26 @@ func (m IssuesModel) Update(msg tea.Msg) (IssuesModel, tea.Cmd) {
 			m.viewportStartIndex = max(0, len(m.issues)-m.height)
 			return m, nil
 		}
+	case IssuesListUpdateWidthMsg:
+		m.width = msg.Width
+		return m, nil
+	case IssuesListUpdateIssuesMsg:
+		m.issues = msg.Issues
+		return m, nil
+	case IssuesListResetViewportMsg:
+		m.viewportStartIndex = 0
+		m.cursorIndex = 0
+		return m, nil
 	}
 
 	return m, nil
 }
 
-func (m IssuesModel) View() string {
+func (m IssuesListModel) View() string {
 	doc := strings.Builder{}
 
 	for i := 0; i < m.height; i++ {
-		if i+m.viewportStartIndex > len(m.issues) {
+		if i+m.viewportStartIndex >= len(m.issues) {
 			// Fill in blank space
 			for j := i; j < m.height; j++ {
 				doc.WriteString("\n")
