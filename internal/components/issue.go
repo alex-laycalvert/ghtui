@@ -8,8 +8,6 @@ import (
 	"github.com/google/go-github/v69/github"
 )
 
-const borderWidth = 1
-
 type IssueModel struct {
 	width  int
 	height int
@@ -23,18 +21,21 @@ type IssueSetIssueMsg struct {
 	Issue *github.Issue
 }
 
-func NewIssueComponent(issue *github.Issue, width int, height int) (IssueModel, error) {
+func NewIssueComponent(issue *github.Issue, width int, height int) IssueModel {
 	viewport := viewport.New(width, height)
 	viewport.Style = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("62")).
+		UnsetBorderTop().
+		UnsetBorderRight().
+		UnsetBorderBottom().
 		PaddingRight(2)
-	renderWidth := width - viewport.Style.GetHorizontalFrameSize() - 2*borderWidth
-	renderer, err := glamour.NewTermRenderer(
+	renderWidth := width - viewport.Style.GetHorizontalFrameSize()
+	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(renderWidth),
 	)
-	return IssueModel{width, height, issue, viewport, renderer}, err
+	return IssueModel{width, height, issue, viewport, renderer}
 }
 
 func (m IssueModel) Name() string {

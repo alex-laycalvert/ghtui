@@ -17,7 +17,7 @@ type ComponentGroup struct {
 	components []Component
 }
 
-func NewComponentGroup(components []Component) ComponentGroup {
+func NewComponentGroup(components ...Component) ComponentGroup {
 	group := ComponentGroup{components: components}
 	return group
 }
@@ -29,6 +29,10 @@ func (c ComponentGroup) GetComponent(name ComponentName) Component {
 		}
 	}
 	return nil
+}
+
+func (c ComponentGroup) GetComponents() []Component {
+	return c.components
 }
 
 func (c ComponentGroup) Init() tea.Cmd {
@@ -73,6 +77,17 @@ func (c *ComponentGroup) FocusOn(name ComponentName) {
 			c.focus = i
 			break
 		}
+	}
+}
+
+func (c *ComponentGroup) FocusNext() {
+	c.focus = (c.focus + 1) % len(c.components)
+}
+
+func (c *ComponentGroup) FocusPrevious() {
+	c.focus = c.focus - 1
+	if c.focus < 0 {
+		c.focus = len(c.components) - 1
 	}
 }
 

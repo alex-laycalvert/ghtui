@@ -39,8 +39,7 @@ type IssuesListUpdateIssuesMsg struct {
 type IssuesListResetViewportMsg struct{}
 
 func NewIssuesListComponent(width int, height int) IssuesListModel {
-	// Accounting for border width
-	return IssuesListModel{width: width - 2, height: height - 2}
+	return IssuesListModel{width: width, height: height}
 }
 
 func (m IssuesListModel) GetSelectedIssue() *github.Issue {
@@ -113,23 +112,31 @@ func (m IssuesListModel) View() string {
 		}
 
 		issue := m.issues[i+m.viewportStartIndex]
-		var listStyle lipgloss.Style
+		var itemStyle lipgloss.Style
 		if i+m.viewportStartIndex == m.cursorIndex {
-			listStyle = selectedListItemStyle
+			itemStyle = selectedListItemStyle
 		} else {
-			listStyle = listItemStyle
+			itemStyle = listItemStyle
 		}
-		listStyle = listStyle.Width(m.width)
+		itemStyle = itemStyle.Width(m.width)
 
 		issueString := strconv.Itoa(*issue.Number) + " " + *issue.Title
 		if len(issueString) >= m.width {
 			issueString = issueString[:m.width-1]
 		}
-		doc.WriteString(listStyle.Render(issueString))
+		doc.WriteString(
+			itemStyle.
+				Width(len(issueString)).
+				Render(issueString),
+		)
+
+		if i < m.height-1 {
+			doc.WriteString("\n")
+		}
 	}
 
-	style := issuesTableStyle.
+	return lipgloss.NewStyle().
 		Width(m.width).
-		Height(m.height)
-	return style.Render(doc.String())
+		Height(m.height).
+		Render(doc.String())
 }

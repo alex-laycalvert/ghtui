@@ -3,29 +3,39 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/go-github/v69/github"
 	"golang.org/x/term"
 
-	"github.com/alex-laycalvert/gtui/internal/pages"
+	"github.com/alex-laycalvert/gtui/internal/components"
+	"github.com/alex-laycalvert/gtui/internal/pages/issues"
+	"github.com/alex-laycalvert/gtui/internal/pages/repo"
 )
 
 type model struct {
+	width  int
+	height int
+
 	client *github.Client
+	repo   string
 
-	width, height int
-
-	pages            []tea.Model
-	currentPageIndex int
+	pages components.ComponentGroup
 }
+
+const (
+	repoPage   components.ComponentName = "Repo"
+	issuesPage components.ComponentName = "Issues"
+)
 
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Println("Usage: gtui <repo> <token>")
 		os.Exit(1)
 	}
-	repo := os.Args[1]
+	repoName := os.Args[1]
 	token := os.Args[2]
 
 	client := github.NewClient(nil).WithAuthToken(token)
@@ -33,15 +43,26 @@ func main() {
 	width, height, err := term.GetSize(int(os.Stdout.Fd()))
 	checkErr(err)
 
-	issuesPage := pages.NewIssuesPage(client, repo, width, height)
+	pageWidth := width - 6
+	pageHeight := height - 6
+
+	pages := components.NewComponentGroup(
+		components.NameComponent(
+			repoPage,
+			repo.NewRepoPage(client, repoName, pageWidth, pageHeight),
+		),
+		components.NameComponent(
+			issuesPage,
+			issues.NewIssuesPage(client, repoName, pageWidth, pageHeight),
+		),
+	)
 
 	m := model{
 		client: client,
+		repo:   repoName,
 		width:  width,
 		height: height,
-
-		currentPageIndex: 0,
-		pages:            []tea.Model{issuesPage},
+		pages:  pages,
 	}
 
 	_, err = tea.NewProgram(m).Run()
@@ -49,11 +70,7 @@ func main() {
 }
 
 func (m model) Init() tea.Cmd {
-	initCmds := make([]tea.Cmd, len(m.pages))
-	for i, page := range m.pages {
-		initCmds[i] = page.Init()
-	}
-	return tea.Batch(initCmds...)
+	return m.pages.Init()
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -62,21 +79,76 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch keypress := msg.String(); keypress {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "tab":
+			m.pages.FocusNext()
+			return m, m.pages.GetFocusedComponent().Init()
+		case "shift+tab":
+			m.pages.FocusPrevious()
+			return m, m.pages.GetFocusedComponent().Init()
 		default:
-			var cmd tea.Cmd
-			m.pages[m.currentPageIndex], cmd = m.pages[m.currentPageIndex].Update(msg)
-			return m, cmd
+			return m, m.pages.UpdateFocused(msg)
 		}
 	default:
-		var cmd tea.Cmd
-		m.pages[m.currentPageIndex], cmd = m.pages[m.currentPageIndex].Update(msg)
-		return m, cmd
+		return m, m.pages.UpdateFocused(msg)
 	}
 }
 
+func tabBorderWithBottom(left, middle, right string) lipgloss.Border {
+	border := lipgloss.RoundedBorder()
+	border.BottomLeft = left
+	border.Bottom = middle
+	border.BottomRight = right
+	return border
+}
+
+func tabBorderStyle() lipgloss.Style {
+	border := lipgloss.RoundedBorder()
+	style := lipgloss.NewStyle().
+		Border(border).
+		BorderForeground(highlightColor).
+		Padding(0, 1)
+	return style
+}
+
+var (
+	docStyle         = lipgloss.NewStyle().Padding(1, 2, 1, 2)
+	highlightColor   = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	inactiveTabStyle = tabBorderStyle()
+	activeTabStyle   = inactiveTabStyle.
+				Bold(true)
+	windowStyle = lipgloss.NewStyle().
+			BorderForeground(highlightColor).
+			Border(lipgloss.RoundedBorder())
+)
+
 func (m model) View() string {
-	currentPage := m.pages[m.currentPageIndex]
-	return currentPage.View()
+	doc := strings.Builder{}
+
+	var renderedTabs []string
+
+	pages := m.pages.GetComponents()
+	currentPage := m.pages.GetFocusedComponent()
+	for _, t := range pages {
+		var style lipgloss.Style
+		isActive := t.Name() == currentPage.Name()
+		if isActive {
+			style = activeTabStyle
+		} else {
+			style = inactiveTabStyle
+		}
+		renderedTabs = append(renderedTabs, style.Render(string(t.Name())))
+	}
+
+	row := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...) + "\n"
+	doc.WriteString(row)
+	doc.WriteString(
+		windowStyle.
+			Render(currentPage.View()),
+	)
+	return docStyle.
+		Width(m.width).
+		Height(m.height).
+		Render(doc.String())
 }
 
 func checkErr(err error) {
