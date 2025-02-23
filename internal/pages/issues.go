@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/go-github/v69/github"
@@ -30,22 +29,11 @@ var borderedPageStyle = lipgloss.NewStyle().
 	AlignHorizontal(lipgloss.Center).
 	AlignVertical(lipgloss.Center)
 
-type IssuesReadyMsg struct {
-	issues         []*github.Issue
-	lastIssuesPage int
-}
-
 const (
 	SpinnerComponent       components.ComponentName = "spinner"
 	SelectedIssueComponent components.ComponentName = "selectedIssue"
 	IssuesListComponent    components.ComponentName = "issuesList"
 )
-
-type IssuesPageComponents struct {
-	spinner       spinner.Model
-	selectedIssue components.IssueModel
-	issuesList    components.IssuesListModel
-}
 
 type IssuesPageModel struct {
 	width  int
@@ -58,6 +46,11 @@ type IssuesPageModel struct {
 	lastIssuesPage    int
 
 	components components.ComponentGroup
+}
+
+type IssuesReadyMsg struct {
+	issues         []*github.Issue
+	lastIssuesPage int
 }
 
 func NewIssuesPage(client *github.Client, repo string, width int, height int) IssuesPageModel {
