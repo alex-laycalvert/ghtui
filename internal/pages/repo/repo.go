@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	spinnerComponent components.ComponentName = "spinner"
+	spinnerComponent        components.ComponentName = "spinner"
+	markdownViewerComponent components.ComponentName = "markdownViewer"
 )
 
 type RepoPageModel struct {
@@ -34,7 +35,18 @@ type RepoReadyMsg struct {
 
 func NewRepoPage(client *github.Client, repo string, width int, height int) RepoPageModel {
 	components := components.NewComponentGroup(
-		components.NameComponent(spinnerComponent, components.NewSpinnerComponent()),
+		components.NameComponent(
+			spinnerComponent,
+			components.NewSpinnerComponent(),
+		),
+		components.NameComponent(
+			markdownViewerComponent,
+			components.NewMarkdownViewerComponent(
+				width,
+				height,
+				lipgloss.NewStyle(),
+			),
+		),
 	)
 	return RepoPageModel{
 		client:     client,
@@ -62,6 +74,10 @@ func (m RepoPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case RepoReadyMsg:
 		m.state = utils.ReadyState
+		m.components.Update(markdownViewerComponent, components.MarkdownViewerSetContentMsg{
+			Content: msg.content,
+		})
+		m.components.FocusOn(markdownViewerComponent)
 		return m, nil
 	default:
 		cmd := m.components.Update(spinnerComponent, msg)
@@ -87,7 +103,7 @@ func (m RepoPageModel) body() string {
 			m.repo,
 		)
 	case utils.ReadyState:
-		return "Hello, Repo!"
+		return m.components.GetComponent(markdownViewerComponent).View()
 	default:
 		return ""
 	}
@@ -102,9 +118,8 @@ func (m *RepoPageModel) fetchRepo() tea.Cmd {
 		repoName := parts[1]
 		// TODO: handle err
 		content, _, _ := m.client.Repositories.GetReadme(context.Background(), owner, repoName, nil)
+		markdown, _ := content.GetContent()
 
-		return RepoReadyMsg{
-			content: *content.Content,
-		}
+		return RepoReadyMsg{content: markdown}
 	}
 }

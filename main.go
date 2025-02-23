@@ -139,8 +139,16 @@ func (m model) View() string {
 		renderedTabs = append(renderedTabs, style.Render(string(t.Name())))
 	}
 
-	row := lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...) + "\n"
-	doc.WriteString(row)
+	header := lipgloss.NewStyle().
+		MarginLeft(1).
+		Padding(1).
+		Render(m.repo)
+	row := lipgloss.JoinHorizontal(
+		lipgloss.Center,
+		lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...),
+		header,
+	)
+	doc.WriteString(row + "\n")
 	doc.WriteString(
 		windowStyle.
 			Render(currentPage.View()),

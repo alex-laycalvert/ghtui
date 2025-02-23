@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	spinnerComponent       components.ComponentName = "spinner"
-	selectedIssueComponent components.ComponentName = "selectedIssue"
-	issuesListComponent    components.ComponentName = "issuesList"
+	spinnerComponent        components.ComponentName = "spinner"
+	issuesListComponent     components.ComponentName = "issuesList"
+	markdownViewerComponent components.ComponentName = "markdownViewer"
 )
 
 type IssuesPageModel struct {
@@ -28,6 +28,7 @@ type IssuesPageModel struct {
 	state             utils.ComponentState
 	currentIssuesPage int
 	lastIssuesPage    int
+	selectedIssue     *github.Issue
 
 	components components.ComponentGroup
 }
@@ -46,9 +47,28 @@ func NewIssuesPage(client *github.Client, repo string, width int, height int) Is
 		height:            height,
 		currentIssuesPage: 1,
 		components: components.NewComponentGroup(
-			components.NameComponent(selectedIssueComponent, components.NewIssueComponent(nil, width/2, height)),
-			components.NameComponent(spinnerComponent, components.NewSpinnerComponent()),
-			components.NameComponent(issuesListComponent, components.NewIssuesListComponent(width, height)),
+			components.NameComponent(
+				spinnerComponent,
+				components.NewSpinnerComponent(),
+			),
+			components.NameComponent(
+				issuesListComponent,
+				components.NewIssuesListComponent(width, height),
+			),
+			components.NameComponent(
+				markdownViewerComponent,
+				components.NewMarkdownViewerComponent(
+					width/2,
+					height,
+					lipgloss.NewStyle().
+						Border(lipgloss.NormalBorder()).
+						BorderForeground(lipgloss.Color("62")).
+						UnsetBorderTop().
+						UnsetBorderRight().
+						UnsetBorderBottom().
+						PaddingRight(2),
+				),
+			),
 		),
 	}
 
@@ -71,25 +91,24 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			issue := m.getSelectedIssue()
+			m.selectedIssue = issue
 			m.components.Update(issuesListComponent, components.IssuesListUpdateWidthMsg{
 				Width: m.width / 2,
 			})
-			m.components.Update(selectedIssueComponent, components.IssueSetIssueMsg{
-				Issue: issue,
+			m.components.Update(markdownViewerComponent, components.MarkdownViewerSetContentMsg{
+				Content: *issue.Body,
 			})
-			m.components.FocusOn(selectedIssueComponent)
+			m.components.FocusOn(markdownViewerComponent)
 			return m, nil
 		case "esc":
+			m.selectedIssue = nil
 			m.components.Update(issuesListComponent, components.IssuesListUpdateWidthMsg{
 				Width: m.width,
-			})
-			m.components.Update(selectedIssueComponent, components.IssueSetIssueMsg{
-				Issue: nil,
 			})
 			m.components.FocusOn(issuesListComponent)
 			return m, nil
 		case "[":
-			if m.getDisplayedIssue() != nil {
+			if m.selectedIssue != nil {
 				return m, nil
 			}
 
@@ -100,7 +119,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentIssuesPage--
 			return m, m.fetchIssues(m.currentIssuesPage)
 		case "]":
-			if m.getDisplayedIssue() != nil {
+			if m.selectedIssue != nil {
 				return m, nil
 			}
 
@@ -111,7 +130,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentIssuesPage++
 			return m, m.fetchIssues(m.currentIssuesPage)
 		case "{":
-			if m.getDisplayedIssue() != nil {
+			if m.selectedIssue != nil {
 				return m, nil
 			}
 
@@ -122,7 +141,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.currentIssuesPage = 1
 			return m, m.fetchIssues(m.currentIssuesPage)
 		case "}":
-			if m.getDisplayedIssue() != nil {
+			if m.selectedIssue != nil {
 				return m, nil
 			}
 
@@ -171,12 +190,14 @@ func (m IssuesPageModel) body() string {
 				m.repo,
 			))
 	case utils.ReadyState:
-		return lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			m.components.GetComponent(issuesListComponent).View(),
-			m.components.GetComponent(selectedIssueComponent).View(),
-		)
-
+		if m.selectedIssue != nil {
+			return lipgloss.JoinHorizontal(
+				lipgloss.Top,
+				m.components.GetComponent(issuesListComponent).View(),
+				m.components.GetComponent(markdownViewerComponent).View(),
+			)
+		}
+		return m.components.GetComponent(issuesListComponent).View()
 	default:
 		return ""
 	}
@@ -208,13 +229,6 @@ func (m IssuesPageModel) getSelectedIssue() *github.Issue {
 	return m.components.
 		GetComponent(issuesListComponent).(components.NamedComponent[components.IssuesListModel]).
 		Component.GetSelectedIssue()
-}
-
-// TODO: maybe make this a msg that is sent to this component?
-func (m IssuesPageModel) getDisplayedIssue() *github.Issue {
-	return m.components.
-		GetComponent(selectedIssueComponent).(components.NamedComponent[components.IssueModel]).
-		Component.GetIssue()
 }
 
 func checkErr(err error) {
