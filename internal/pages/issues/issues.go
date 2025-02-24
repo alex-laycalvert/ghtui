@@ -17,6 +17,7 @@ const (
 	spinnerComponent        components.ComponentName = "spinner"
 	issuesListComponent     components.ComponentName = "issuesList"
 	markdownViewerComponent components.ComponentName = "markdownViewer"
+	textInputComponent      components.ComponentName = "textInput"
 )
 
 type IssuesPageModel struct {
@@ -29,11 +30,14 @@ type IssuesPageModel struct {
 	currentIssuesPage int
 	lastIssuesPage    int
 	selectedIssue     *github.Issue
+	search            string
 
 	components components.ComponentGroup
 }
 
-type IssuesReadyMsg struct {
+type issuesLoadingMsg struct{}
+
+type issuesReadyMsg struct {
 	issues         []*github.Issue
 	lastIssuesPage int
 }
@@ -69,6 +73,10 @@ func NewIssuesPage(client *github.Client, repo string, width int, height int) Is
 						PaddingRight(2),
 				),
 			),
+			components.NameComponent(
+				textInputComponent,
+				components.NewTextInputComponent("Search", width),
+			),
 		),
 	}
 
@@ -76,8 +84,8 @@ func NewIssuesPage(client *github.Client, repo string, width int, height int) Is
 }
 
 func (m IssuesPageModel) Init() tea.Cmd {
-	return tea.Batch(
-		m.fetchIssues(0),
+	return tea.Sequence(
+		m.fetchIssues("", 0),
 		m.components.Init(),
 	)
 }
@@ -85,87 +93,98 @@ func (m IssuesPageModel) Init() tea.Cmd {
 func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch keypress := msg.String(); keypress {
-		case "enter":
+		switch k := msg.String(); {
+		case k == "enter" && m.state == utils.ReadyState && m.components.IsFocused(issuesListComponent):
+			issue := m.getSelectedIssue()
+			m.selectedIssue = issue
+			return m, tea.Sequence(
+				m.components.Update(issuesListComponent, components.ComponentUpdateSizeMsg{
+					Width: m.width / 2,
+				}),
+				m.components.Update(textInputComponent, components.ComponentUpdateSizeMsg{
+					Width: m.width / 2,
+				}),
+				m.components.Update(markdownViewerComponent, components.MarkdownViewerSetContentMsg{
+					Content: *issue.Body,
+				}),
+				m.components.FocusOn(markdownViewerComponent),
+			)
+		case k == "esc":
+			if m.components.IsFocused(textInputComponent) {
+				return m, tea.Sequence(
+					m.components.Update(issuesListComponent, components.ComponentUpdateSizeMsg{
+						Height: m.height,
+					}),
+					m.components.FocusOn(issuesListComponent),
+				)
+			} else if m.components.IsFocused(markdownViewerComponent) {
+				m.selectedIssue = nil
+				return m, tea.Sequence(
+					m.components.Update(issuesListComponent, components.ComponentUpdateSizeMsg{
+						Width: m.width,
+					}),
+					m.components.FocusOn(issuesListComponent),
+				)
+			} else {
+				cmds := []tea.Cmd{
+					m.components.Update(textInputComponent, components.TextInputClearMsg{}),
+				}
+				if m.search != "" {
+					m.search = ""
+					cmds = append(cmds, m.fetchIssues("", 0))
+				}
+				return m, tea.Sequence(cmds...)
+			}
+		case k == "[" && m.state == utils.ReadyState && m.selectedIssue == nil && m.currentIssuesPage > 1:
+			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
+			m.currentIssuesPage--
+			return m, m.fetchIssues("", m.currentIssuesPage)
+		case k == "]" && m.state == utils.ReadyState && m.selectedIssue == nil && m.currentIssuesPage < m.lastIssuesPage:
+			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
+			m.currentIssuesPage++
+			return m, m.fetchIssues("", m.currentIssuesPage)
+		case k == "{" && m.state == utils.ReadyState && m.selectedIssue == nil && m.currentIssuesPage > 1:
+			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
+			m.currentIssuesPage = 1
+			return m, m.fetchIssues("", m.currentIssuesPage)
+		case k == "}" && m.state == utils.ReadyState && m.selectedIssue == nil && m.currentIssuesPage < m.lastIssuesPage:
+			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
+			m.currentIssuesPage = m.lastIssuesPage
+			return m, m.fetchIssues("", m.currentIssuesPage)
+		case k == "/" && m.state == utils.ReadyState && !m.components.IsFocused(textInputComponent):
+			return m, tea.Sequence(
+				m.components.Update(issuesListComponent, components.ComponentUpdateSizeMsg{
+					Height: m.height - 1,
+				}),
+				m.components.FocusOn(textInputComponent),
+			)
+		default:
 			if m.state == utils.LoadingState {
 				return m, nil
 			}
-			issue := m.getSelectedIssue()
-			m.selectedIssue = issue
-			m.components.Update(issuesListComponent, components.IssuesListUpdateWidthMsg{
-				Width: m.width / 2,
-			})
-			m.components.Update(markdownViewerComponent, components.MarkdownViewerSetContentMsg{
-				Content: *issue.Body,
-			})
-			m.components.FocusOn(markdownViewerComponent)
-			return m, nil
-		case "esc":
-			m.selectedIssue = nil
-			m.components.Update(issuesListComponent, components.IssuesListUpdateWidthMsg{
-				Width: m.width,
-			})
-			m.components.FocusOn(issuesListComponent)
-			return m, nil
-		case "[":
-			if m.selectedIssue != nil {
-				return m, nil
-			}
-
-			if m.currentIssuesPage == 1 {
-				return m, nil
-			}
-			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
-			m.currentIssuesPage--
-			return m, m.fetchIssues(m.currentIssuesPage)
-		case "]":
-			if m.selectedIssue != nil {
-				return m, nil
-			}
-
-			if m.currentIssuesPage >= m.lastIssuesPage {
-				return m, nil
-			}
-			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
-			m.currentIssuesPage++
-			return m, m.fetchIssues(m.currentIssuesPage)
-		case "{":
-			if m.selectedIssue != nil {
-				return m, nil
-			}
-
-			if m.currentIssuesPage == 1 {
-				return m, nil
-			}
-			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
-			m.currentIssuesPage = 1
-			return m, m.fetchIssues(m.currentIssuesPage)
-		case "}":
-			if m.selectedIssue != nil {
-				return m, nil
-			}
-
-			if m.currentIssuesPage >= m.lastIssuesPage {
-				return m, nil
-			}
-			m.components.Update(issuesListComponent, components.IssuesListResetViewportMsg{})
-			m.currentIssuesPage = m.lastIssuesPage
-			return m, m.fetchIssues(m.currentIssuesPage)
-		default:
-			cmd := m.components.UpdateFocused(msg)
-			return m, cmd
+			return m, m.components.UpdateFocused(msg)
 		}
-	case IssuesReadyMsg:
+	case components.TextInputSubmitMsg:
+		cmds := []tea.Cmd{m.components.FocusOn(issuesListComponent)}
+		if m.search != msg.Value {
+			m.search = msg.Value
+			cmds = append(cmds, m.fetchIssues(msg.Value, 0))
+		}
+		return m, tea.Sequence(cmds...)
+	case issuesReadyMsg:
 		m.lastIssuesPage = msg.lastIssuesPage
 		m.state = utils.ReadyState
-		m.components.Update(issuesListComponent, components.IssuesListUpdateIssuesMsg{
-			Issues: msg.issues,
-		})
-		m.components.FocusOn(issuesListComponent)
-		return m, nil
+		return m, tea.Batch(
+			m.components.FocusOn(issuesListComponent),
+			m.components.Update(issuesListComponent, components.IssuesListUpdateIssuesMsg{
+				Issues: msg.issues,
+			}),
+		)
+	case issuesLoadingMsg:
+		m.state = utils.LoadingState
+		return m, m.components.FocusOn(spinnerComponent)
 	default:
-		cmd := m.components.Update(spinnerComponent, msg)
-		return m, cmd
+		return m, m.components.UpdateFocused(msg)
 	}
 }
 
@@ -190,38 +209,53 @@ func (m IssuesPageModel) body() string {
 				m.repo,
 			))
 	case utils.ReadyState:
-		if m.selectedIssue != nil {
-			return lipgloss.JoinHorizontal(
-				lipgloss.Top,
-				m.components.GetComponent(issuesListComponent).View(),
-				m.components.GetComponent(markdownViewerComponent).View(),
+		issuesList := m.components.GetComponent(issuesListComponent).View()
+		if m.components.IsFocused(textInputComponent) || m.search != "" {
+			issuesList = lipgloss.JoinVertical(
+				lipgloss.Left,
+				issuesList,
+				m.components.GetComponent(textInputComponent).View(),
 			)
 		}
-		return m.components.GetComponent(issuesListComponent).View()
+
+		if m.selectedIssue == nil {
+			return issuesList
+		}
+
+		return lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			issuesList,
+			m.components.GetComponent(markdownViewerComponent).View(),
+		)
 	default:
 		return ""
 	}
 }
 
-func (m *IssuesPageModel) fetchIssues(page int) tea.Cmd {
-	m.state = utils.LoadingState
+func (m *IssuesPageModel) fetchIssues(searchTerm string, page int) tea.Cmd {
+	return tea.Sequence(
+		issuesLoadingCmd,
+		func() tea.Msg {
+			searchString := fmt.Sprintf("repo:%s is:open is:issue %s", m.repo, searchTerm)
+			result, response, err := m.client.Search.Issues(context.Background(), searchString, &github.SearchOptions{
+				Sort:        "created",
+				Order:       "desc",
+				ListOptions: github.ListOptions{Page: page, PerPage: 50},
+			})
 
-	return func() tea.Msg {
-		searchString := fmt.Sprintf("repo:%s is:open is:issue", m.repo)
-		result, response, err := m.client.Search.Issues(context.Background(), searchString, &github.SearchOptions{
-			Sort:        "created",
-			Order:       "desc",
-			ListOptions: github.ListOptions{Page: page, PerPage: 50},
-		})
+			// TODO: send err as message
+			checkErr(err)
 
-		// TODO: send err as message
-		checkErr(err)
+			return issuesReadyMsg{
+				issues:         result.Issues,
+				lastIssuesPage: response.LastPage,
+			}
+		},
+	)
+}
 
-		return IssuesReadyMsg{
-			issues:         result.Issues,
-			lastIssuesPage: response.LastPage,
-		}
-	}
+func issuesLoadingCmd() tea.Msg {
+	return issuesLoadingMsg{}
 }
 
 // TODO: maybe make this a msg that is sent to this component?

@@ -28,10 +28,6 @@ type IssuesListModel struct {
 	cursorIndex        int
 }
 
-type IssuesListUpdateWidthMsg struct {
-	Width int
-}
-
 type IssuesListUpdateIssuesMsg struct {
 	Issues []*github.Issue
 }
@@ -84,8 +80,13 @@ func (m IssuesListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewportStartIndex = max(0, len(m.issues)-m.height)
 			return m, nil
 		}
-	case IssuesListUpdateWidthMsg:
-		m.width = msg.Width
+	case ComponentUpdateSizeMsg:
+		if msg.Width > 0 {
+			m.width = msg.Width
+		}
+		if msg.Height > 0 {
+			m.height = msg.Height
+		}
 		return m, nil
 	case IssuesListUpdateIssuesMsg:
 		m.issues = msg.Issues

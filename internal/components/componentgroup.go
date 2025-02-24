@@ -17,6 +17,11 @@ type ComponentGroup struct {
 	components []Component
 }
 
+type ComponentUpdateSizeMsg struct {
+	Width  int
+	Height int
+}
+
 func NewComponentGroup(components ...Component) ComponentGroup {
 	group := ComponentGroup{components: components}
 	return group
@@ -71,13 +76,34 @@ func (c ComponentGroup) GetFocusedComponent() Component {
 	return c.components[c.focus]
 }
 
-func (c *ComponentGroup) FocusOn(name ComponentName) {
-	for i, comp := range c.components {
-		if comp.Name() == name {
-			c.focus = i
-			break
-		}
+func (c ComponentGroup) GetFocusedComponentName() ComponentName {
+	focusedComponent := c.GetFocusedComponent()
+	if focusedComponent == nil {
+		return ""
 	}
+	return focusedComponent.Name()
+}
+
+func (c ComponentGroup) IsFocused(name ComponentName) bool {
+	return c.GetFocusedComponentName() == name
+}
+
+func (c *ComponentGroup) FocusOn(name ComponentName) tea.Cmd {
+	cmds := make([]tea.Cmd, len(c.components))
+	for i, comp := range c.components {
+		var msg tea.Msg
+		if comp.Name() == name {
+			msg = tea.FocusMsg{}
+			c.focus = i
+		} else {
+			msg = tea.BlurMsg{}
+		}
+		var m tea.Model
+		m, cmd := comp.Update(msg)
+		c.components[i] = m.(Component)
+		cmds[i] = cmd
+	}
+	return tea.Batch(cmds...)
 }
 
 func (c *ComponentGroup) FocusNext() {

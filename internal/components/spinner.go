@@ -24,9 +24,14 @@ func (m SpinnerModel) Init() tea.Cmd {
 }
 
 func (m SpinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	m.spinner, cmd = m.spinner.Update(msg)
-	return m, cmd
+	switch msg := msg.(type) {
+	case tea.FocusMsg:
+		return m, m.spinner.Tick
+	default:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
 }
 
 func (m SpinnerModel) View() string {
