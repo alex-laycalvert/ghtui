@@ -23,7 +23,7 @@ type RepoPageModel struct {
 	repo     string
 	client   *github.Client
 
-	componentGroup          components.ComponentGroup
+	componentGroup          utils.ComponentGroup
 	spinnerComponent        string
 	markdownViewerComponent string
 }
@@ -49,7 +49,7 @@ func NewRepoPage(id string, client *github.Client, repo string, width int, heigh
 		repo:                    repo,
 		width:                   width,
 		height:                  height,
-		componentGroup:          components.NewComponentGroup(spinner, markdownViewer),
+		componentGroup:          utils.NewComponentGroup(spinner, markdownViewer),
 		spinnerComponent:        spinner.ID(),
 		markdownViewerComponent: markdownViewer.ID(),
 	}

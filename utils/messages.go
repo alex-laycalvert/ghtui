@@ -7,3 +7,9 @@ type FocusMsg struct {
 type BlurMsg struct {
 	ID string
 }
+
+type UpdateSizeMsg struct {
+	ID     string
+	Width  int
+	Height int
+}

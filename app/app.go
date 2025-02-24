@@ -9,9 +9,9 @@ import (
 	"github.com/google/go-github/v69/github"
 	"golang.org/x/term"
 
-	"github.com/alex-laycalvert/ghtui/ui/components"
 	"github.com/alex-laycalvert/ghtui/ui/pages/issuespage"
 	"github.com/alex-laycalvert/ghtui/ui/pages/repopage"
+	"github.com/alex-laycalvert/ghtui/utils"
 )
 
 type App struct {
@@ -38,7 +38,7 @@ func New(token string, repoName string) (*App, error) {
 		width:  width,
 		height: height,
 
-		pageGroup: components.NewComponentGroup(
+		pageGroup: utils.NewComponentGroup(
 			repo,
 			issues,
 		),
@@ -63,7 +63,7 @@ type appModel struct {
 	client *github.Client
 	repo   string
 
-	pageGroup  components.ComponentGroup
+	pageGroup  utils.ComponentGroup
 	issuesPage string
 	repoPage   string
 }

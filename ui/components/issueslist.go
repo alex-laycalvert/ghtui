@@ -3,6 +3,7 @@ package components
 import (
 	"strconv"
 
+	"github.com/alex-laycalvert/ghtui/utils"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/go-github/v69/github"
@@ -89,7 +90,7 @@ func (m IssuesListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewportStartIndex = max(0, len(m.issues)-m.height)
 			return m, nil
 		}
-	case ComponentUpdateSizeMsg:
+	case utils.UpdateSizeMsg:
 		if msg.Width > 0 {
 			m.width = msg.Width
 		}

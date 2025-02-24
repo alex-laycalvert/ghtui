@@ -26,7 +26,7 @@ type IssuesPageModel struct {
 	selectedIssue     *github.Issue
 	search            string
 
-	componentGroup          components.ComponentGroup
+	componentGroup          utils.ComponentGroup
 	spinnerComponent        string
 	issuesListComponent     string
 	markdownViewerComponent string
@@ -64,7 +64,7 @@ func NewIssuesPage(id string, client *github.Client, repo string, width int, hei
 		width:             width,
 		height:            height,
 		currentIssuesPage: 1,
-		componentGroup: components.NewComponentGroup(
+		componentGroup: utils.NewComponentGroup(
 			spinner,
 			issuesList,
 			markdownViewer,
@@ -108,10 +108,10 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			issue := m.getSelectedIssue()
 			m.selectedIssue = issue
 			return m, tea.Sequence(
-				m.componentGroup.Update(m.issuesListComponent, components.ComponentUpdateSizeMsg{
+				m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
 					Width: m.width / 2,
 				}),
-				m.componentGroup.Update(m.textInputComponent, components.ComponentUpdateSizeMsg{
+				m.componentGroup.Update(m.textInputComponent, utils.UpdateSizeMsg{
 					Width: m.width / 2,
 				}),
 				m.componentGroup.Update(m.markdownViewerComponent, components.MarkdownViewerSetContentMsg{
@@ -122,7 +122,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case k == "esc":
 			if m.componentGroup.IsFocused(m.textInputComponent) {
 				return m, tea.Sequence(
-					m.componentGroup.Update(m.issuesListComponent, components.ComponentUpdateSizeMsg{
+					m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
 						Height: m.height,
 					}),
 					m.componentGroup.FocusOn(m.issuesListComponent),
@@ -130,7 +130,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if m.componentGroup.IsFocused(m.markdownViewerComponent) {
 				m.selectedIssue = nil
 				return m, tea.Sequence(
-					m.componentGroup.Update(m.issuesListComponent, components.ComponentUpdateSizeMsg{
+					m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
 						Width: m.width,
 					}),
 					m.componentGroup.FocusOn(m.issuesListComponent),
@@ -163,7 +163,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.fetchIssues("", m.currentIssuesPage)
 		case k == "/" && m.state == utils.ReadyState && !m.componentGroup.IsFocused(m.textInputComponent):
 			return m, tea.Sequence(
-				m.componentGroup.Update(m.issuesListComponent, components.ComponentUpdateSizeMsg{
+				m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
 					Height: m.height - 1,
 				}),
 				m.componentGroup.FocusOn(m.textInputComponent),

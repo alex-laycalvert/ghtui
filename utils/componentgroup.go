@@ -1,24 +1,23 @@
-package components
+package utils
 
 import (
-	"github.com/alex-laycalvert/ghtui/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// A `tea.Model` that represents an identifiable component in the UI.
 type Component interface {
 	tea.Model
 
 	ID() string
 }
 
+// A collection of `Component` instances that can be managed as a group,
+// with the ability to "focus" on a specific component at a time.
+//
+// Each component is identified by it's `ID()` method.
 type ComponentGroup struct {
 	focus      int
 	components []Component
-}
-
-type ComponentUpdateSizeMsg struct {
-	Width  int
-	Height int
 }
 
 func NewComponentGroup(components ...Component) ComponentGroup {
@@ -102,10 +101,10 @@ func (c *ComponentGroup) FocusOn(id string) tea.Cmd {
 	for i, comp := range c.components {
 		var msg tea.Msg
 		if comp.ID() == id {
-			msg = utils.FocusMsg{ID: id}
+			msg = FocusMsg{ID: id}
 			c.focus = i
 		} else {
-			msg = utils.BlurMsg{ID: id}
+			msg = BlurMsg{ID: id}
 		}
 		var m tea.Model
 		m, cmd := comp.Update(msg)
@@ -119,7 +118,7 @@ func (c *ComponentGroup) FocusNext() tea.Cmd {
 	c.focus = (c.focus + 1) % len(c.components)
 	var m tea.Model
 	m, cmd := c.components[c.focus].Update(
-		utils.FocusMsg{ID: c.components[c.focus].ID()},
+		FocusMsg{ID: c.components[c.focus].ID()},
 	)
 	c.components[c.focus] = m.(Component)
 	return cmd
@@ -132,7 +131,7 @@ func (c *ComponentGroup) FocusPrevious() tea.Cmd {
 	}
 	var m tea.Model
 	m, cmd := c.components[c.focus].Update(
-		utils.BlurMsg{ID: c.components[c.focus].ID()},
+		BlurMsg{ID: c.components[c.focus].ID()},
 	)
 	c.components[c.focus] = m.(Component)
 	return cmd

@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 
+	"github.com/alex-laycalvert/ghtui/utils"
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -84,7 +85,7 @@ func (m TextInputComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TextInputClearMsg:
 		m.value = ""
 		return m, nil
-	case ComponentUpdateSizeMsg:
+	case utils.UpdateSizeMsg:
 		if msg.Width > 0 {
 			m.width = msg.Width
 		}
