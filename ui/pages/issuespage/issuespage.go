@@ -1,4 +1,4 @@
-package issues
+package issuespage
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/go-github/v69/github"
 
-	"github.com/alex-laycalvert/ghtui/internal/components"
-	"github.com/alex-laycalvert/ghtui/internal/utils"
+	"github.com/alex-laycalvert/ghtui/ui/components"
+	"github.com/alex-laycalvert/ghtui/utils"
 )
 
 const (

@@ -59,6 +59,16 @@ func (c *ComponentGroup) Update(name ComponentName, msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+func (c *ComponentGroup) UpdateAll(msg tea.Msg) tea.Cmd {
+	cmds := make([]tea.Cmd, len(c.components))
+	for i, comp := range c.components {
+		m, cmd := comp.Update(msg)
+		c.components[i] = m.(Component)
+		cmds[i] = cmd
+	}
+	return tea.Batch(cmds...)
+}
+
 func (c *ComponentGroup) UpdateFocused(msg tea.Msg) tea.Cmd {
 	if c.focus == -1 {
 		return nil

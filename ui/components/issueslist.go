@@ -2,7 +2,6 @@ package components
 
 import (
 	"strconv"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -101,20 +100,11 @@ func (m IssuesListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m IssuesListModel) View() string {
-	doc := strings.Builder{}
-
-	for i := 0; i < m.height; i++ {
-		if i+m.viewportStartIndex >= len(m.issues) {
-			// Fill in blank space
-			for j := i; j < m.height-1; j++ {
-				doc.WriteString("\n")
-			}
-			break
-		}
-
-		issue := m.issues[i+m.viewportStartIndex]
+	issueStrings := make([]string, 0)
+	for i := m.viewportStartIndex; i < m.viewportStartIndex+m.height; i++ {
+		issue := m.issues[i]
 		var itemStyle lipgloss.Style
-		if i+m.viewportStartIndex == m.cursorIndex {
+		if i == m.cursorIndex {
 			itemStyle = selectedListItemStyle
 		} else {
 			itemStyle = listItemStyle
@@ -125,19 +115,11 @@ func (m IssuesListModel) View() string {
 		if len(issueString) >= m.width {
 			issueString = issueString[:m.width-1]
 		}
-		doc.WriteString(
-			itemStyle.
-				Width(len(issueString)).
-				Render(issueString),
-		)
-
-		if i < m.height-1 {
-			doc.WriteString("\n")
-		}
+		issueStrings = append(issueStrings, itemStyle.Render(issueString))
 	}
 
 	return lipgloss.NewStyle().
 		Width(m.width).
 		Height(m.height).
-		Render(doc.String())
+		Render(lipgloss.JoinVertical(lipgloss.Left, issueStrings...))
 }
