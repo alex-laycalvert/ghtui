@@ -5,9 +5,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
 )
 
-type MarkdownViewerModel struct {
+type markdownViewerModel struct {
+	id     string
 	width  int
 	height int
 
@@ -20,7 +22,7 @@ type MarkdownViewerSetContentMsg struct {
 	Content string
 }
 
-func NewMarkdownViewerComponent(width int, height int, style lipgloss.Style) MarkdownViewerModel {
+func NewMarkdownViewerComponent(width int, height int, style lipgloss.Style) markdownViewerModel {
 	viewport := viewport.New(width, height)
 	viewport.Style = style
 	renderWidth := width - viewport.Style.GetHorizontalFrameSize()
@@ -28,7 +30,8 @@ func NewMarkdownViewerComponent(width int, height int, style lipgloss.Style) Mar
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(renderWidth),
 	)
-	m := MarkdownViewerModel{
+	m := markdownViewerModel{
+		id:       "markdownViewer_" + uuid.NewString(),
 		width:    width,
 		height:   height,
 		viewport: viewport,
@@ -37,11 +40,15 @@ func NewMarkdownViewerComponent(width int, height int, style lipgloss.Style) Mar
 	return m
 }
 
-func (m MarkdownViewerModel) Init() tea.Cmd {
+func (m markdownViewerModel) ID() string {
+	return m.id
+}
+
+func (m markdownViewerModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m MarkdownViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m markdownViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
@@ -63,11 +70,11 @@ func (m MarkdownViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m MarkdownViewerModel) View() string {
+func (m markdownViewerModel) View() string {
 	return m.viewport.View()
 }
 
-func (m *MarkdownViewerModel) setContent(content string) {
+func (m *markdownViewerModel) setContent(content string) {
 	str, err := m.renderer.Render(content)
 	// TODO: error handling
 	if err != nil {

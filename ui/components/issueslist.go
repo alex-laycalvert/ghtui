@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/go-github/v69/github"
+	"github.com/google/uuid"
 )
 
 var (
@@ -20,6 +21,7 @@ var (
 )
 
 type IssuesListModel struct {
+	id                 string
 	width              int
 	height             int
 	issues             []*github.Issue
@@ -34,11 +36,19 @@ type IssuesListUpdateIssuesMsg struct {
 type IssuesListResetViewportMsg struct{}
 
 func NewIssuesListComponent(width int, height int) IssuesListModel {
-	return IssuesListModel{width: width, height: height}
+	return IssuesListModel{
+		id:     "issuesList_" + uuid.NewString(),
+		width:  width,
+		height: height,
+	}
 }
 
 func (m IssuesListModel) GetSelectedIssue() *github.Issue {
 	return m.issues[m.cursorIndex]
+}
+
+func (m IssuesListModel) ID() string {
+	return m.id
 }
 
 func (m IssuesListModel) Init() tea.Cmd {
@@ -101,7 +111,7 @@ func (m IssuesListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m IssuesListModel) View() string {
 	issueStrings := make([]string, 0)
-	for i := m.viewportStartIndex; i < m.viewportStartIndex+m.height; i++ {
+	for i := m.viewportStartIndex; i < m.viewportStartIndex+m.height && i < len(m.issues); i++ {
 		issue := m.issues[i]
 		var itemStyle lipgloss.Style
 		if i == m.cursorIndex {

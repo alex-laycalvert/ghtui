@@ -6,9 +6,11 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
 )
 
 type TextInputComponent struct {
+	id    string
 	width int
 
 	isFocused bool
@@ -27,7 +29,16 @@ type TextInputClearMsg struct{}
 func NewTextInputComponent(label string, width int) TextInputComponent {
 	cursor := cursor.New()
 	cursor.SetChar(" ")
-	return TextInputComponent{label: label, width: width, cursor: cursor}
+	return TextInputComponent{
+		id:     uuid.NewString(),
+		label:  label,
+		width:  width,
+		cursor: cursor,
+	}
+}
+
+func (m TextInputComponent) ID() string {
+    return m.id
 }
 
 func (m TextInputComponent) Init() tea.Cmd {

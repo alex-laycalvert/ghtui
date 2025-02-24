@@ -1,15 +1,14 @@
 package components
 
 import (
+	"github.com/alex-laycalvert/ghtui/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-type ComponentName string
 
 type Component interface {
 	tea.Model
 
-	Name() ComponentName
+	ID() string
 }
 
 type ComponentGroup struct {
@@ -27,9 +26,9 @@ func NewComponentGroup(components ...Component) ComponentGroup {
 	return group
 }
 
-func (c ComponentGroup) GetComponent(name ComponentName) Component {
+func (c ComponentGroup) GetComponent(id string) Component {
 	for _, comp := range c.components {
-		if comp.Name() == name {
+		if comp.ID() == id {
 			return comp
 		}
 	}
@@ -48,9 +47,9 @@ func (c ComponentGroup) Init() tea.Cmd {
 	return tea.Batch(initCmds...)
 }
 
-func (c *ComponentGroup) Update(name ComponentName, msg tea.Msg) tea.Cmd {
+func (c *ComponentGroup) Update(id string, msg tea.Msg) tea.Cmd {
 	for i, comp := range c.components {
-		if comp.Name() == name {
+		if comp.ID() == id {
 			m, cmd := comp.Update(msg)
 			c.components[i] = m.(Component)
 			return cmd
@@ -86,27 +85,27 @@ func (c ComponentGroup) GetFocusedComponent() Component {
 	return c.components[c.focus]
 }
 
-func (c ComponentGroup) GetFocusedComponentName() ComponentName {
+func (c ComponentGroup) GetFocusedComponentName() string {
 	focusedComponent := c.GetFocusedComponent()
 	if focusedComponent == nil {
 		return ""
 	}
-	return focusedComponent.Name()
+	return focusedComponent.ID()
 }
 
-func (c ComponentGroup) IsFocused(name ComponentName) bool {
-	return c.GetFocusedComponentName() == name
+func (c ComponentGroup) IsFocused(id string) bool {
+	return c.GetFocusedComponentName() == id
 }
 
-func (c *ComponentGroup) FocusOn(name ComponentName) tea.Cmd {
+func (c *ComponentGroup) FocusOn(id string) tea.Cmd {
 	cmds := make([]tea.Cmd, len(c.components))
 	for i, comp := range c.components {
 		var msg tea.Msg
-		if comp.Name() == name {
-			msg = tea.FocusMsg{}
+		if comp.ID() == id {
+			msg = utils.FocusMsg{ID: id}
 			c.focus = i
 		} else {
-			msg = tea.BlurMsg{}
+			msg = utils.BlurMsg{ID: id}
 		}
 		var m tea.Model
 		m, cmd := comp.Update(msg)
@@ -116,43 +115,25 @@ func (c *ComponentGroup) FocusOn(name ComponentName) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (c *ComponentGroup) FocusNext() {
+func (c *ComponentGroup) FocusNext() tea.Cmd {
 	c.focus = (c.focus + 1) % len(c.components)
+	var m tea.Model
+	m, cmd := c.components[c.focus].Update(
+		utils.FocusMsg{ID: c.components[c.focus].ID()},
+	)
+	c.components[c.focus] = m.(Component)
+	return cmd
 }
 
-func (c *ComponentGroup) FocusPrevious() {
+func (c *ComponentGroup) FocusPrevious() tea.Cmd {
 	c.focus = c.focus - 1
 	if c.focus < 0 {
 		c.focus = len(c.components) - 1
 	}
-}
-
-func NameComponent[T tea.Model](name ComponentName, component T) NamedComponent[T] {
-	return NamedComponent[T]{
-		name,
-		component,
-	}
-}
-
-type NamedComponent[T tea.Model] struct {
-	name      ComponentName
-	Component T
-}
-
-func (w NamedComponent[T]) Name() ComponentName {
-	return w.name
-}
-
-func (w NamedComponent[T]) Init() tea.Cmd {
-	return w.Component.Init()
-}
-
-func (w NamedComponent[T]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	c, cmd := w.Component.Update(msg)
-	w.Component = c.(T)
-	return w, cmd
-}
-
-func (w NamedComponent[T]) View() string {
-	return w.Component.View()
+	var m tea.Model
+	m, cmd := c.components[c.focus].Update(
+		utils.BlurMsg{ID: c.components[c.focus].ID()},
+	)
+	c.components[c.focus] = m.(Component)
+	return cmd
 }

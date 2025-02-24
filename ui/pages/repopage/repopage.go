@@ -13,75 +13,94 @@ import (
 	"github.com/alex-laycalvert/ghtui/utils"
 )
 
-const (
-	spinnerComponent        components.ComponentName = "spinner"
-	markdownViewerComponent components.ComponentName = "markdownViewer"
-)
-
 type RepoPageModel struct {
+	id     string
 	width  int
 	height int
 
-	state  utils.ComponentState
-	repo   string
-	client *github.Client
+	isLoaded bool
+	state    utils.ComponentState
+	repo     string
+	client   *github.Client
 
-	components components.ComponentGroup
+	componentGroup          components.ComponentGroup
+	spinnerComponent        string
+	markdownViewerComponent string
 }
 
-type RepoReadyMsg struct {
+type repoLoadingMsg struct{}
+
+type repoReadyMsg struct {
 	content string
 }
 
-func NewRepoPage(client *github.Client, repo string, width int, height int) RepoPageModel {
-	components := components.NewComponentGroup(
-		components.NameComponent(
-			spinnerComponent,
-			components.NewSpinnerComponent(),
-		),
-		components.NameComponent(
-			markdownViewerComponent,
-			components.NewMarkdownViewerComponent(
-				width,
-				height,
-				lipgloss.NewStyle(),
-			),
-		),
+func NewRepoPage(id string, client *github.Client, repo string, width int, height int) RepoPageModel {
+	spinner := components.NewSpinnerComponent()
+	markdownViewer := components.NewMarkdownViewerComponent(
+		width,
+		height,
+		lipgloss.NewStyle(),
 	)
 
 	return RepoPageModel{
-		client:     client,
-		repo:       repo,
-		width:      width,
-		height:     height,
-		components: components,
+		id:                      id,
+		isLoaded:                false,
+		client:                  client,
+		repo:                    repo,
+		width:                   width,
+		height:                  height,
+		componentGroup:          components.NewComponentGroup(spinner, markdownViewer),
+		spinnerComponent:        spinner.ID(),
+		markdownViewerComponent: markdownViewer.ID(),
 	}
+}
+
+func (m RepoPageModel) ID() string {
+	return m.id
 }
 
 func (m RepoPageModel) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetchRepo(),
-		m.components.Init(),
+		m.componentGroup.Init(),
 	)
 }
 
 func (m RepoPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case utils.FocusMsg:
+		if m.id != msg.ID {
+			return m, m.componentGroup.UpdateFocused(msg)
+		}
+		if m.isLoaded {
+			return m, nil
+		}
+		return m, m.fetchRepo()
+	case utils.BlurMsg:
+		if m.id != msg.ID {
+			return m, m.componentGroup.UpdateFocused(msg)
+		}
+		return m, nil
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
 		default:
-			cmd := m.components.UpdateFocused(msg)
+			cmd := m.componentGroup.UpdateFocused(msg)
 			return m, cmd
 		}
-	case RepoReadyMsg:
+	case repoReadyMsg:
 		m.state = utils.ReadyState
-		m.components.Update(markdownViewerComponent, components.MarkdownViewerSetContentMsg{
-			Content: msg.content,
-		})
-		m.components.FocusOn(markdownViewerComponent)
-		return m, nil
+		m.isLoaded = true
+		return m, tea.Batch(
+			m.componentGroup.Update(m.markdownViewerComponent, components.MarkdownViewerSetContentMsg{
+				Content: msg.content,
+			}),
+			m.componentGroup.FocusOn(m.markdownViewerComponent),
+		)
+	case repoLoadingMsg:
+		m.state = utils.LoadingState
+		return m, m.componentGroup.FocusOn(m.spinnerComponent)
 	default:
-		cmd := m.components.Update(spinnerComponent, msg)
+		cmd := m.componentGroup.Update(m.spinnerComponent, msg)
 		return m, cmd
 	}
 }
@@ -100,27 +119,32 @@ func (m RepoPageModel) body() string {
 	case utils.LoadingState:
 		return fmt.Sprintf(
 			"%s Loading Repo %s",
-			m.components.GetComponent(spinnerComponent).View(),
+			m.componentGroup.GetComponent(m.spinnerComponent).View(),
 			m.repo,
 		)
 	case utils.ReadyState:
-		return m.components.GetComponent(markdownViewerComponent).View()
+		return m.componentGroup.GetComponent(m.markdownViewerComponent).View()
 	default:
 		return ""
 	}
 }
 
 func (m *RepoPageModel) fetchRepo() tea.Cmd {
-	m.state = utils.LoadingState
+	return tea.Sequence(
+		repoLoadingCmd,
+		func() tea.Msg {
+			parts := strings.Split(m.repo, "/")
+			owner := parts[0]
+			repoName := parts[1]
+			// TODO: handle err
+			content, _, _ := m.client.Repositories.GetReadme(context.Background(), owner, repoName, nil)
+			markdown, _ := content.GetContent()
 
-	return func() tea.Msg {
-		parts := strings.Split(m.repo, "/")
-		owner := parts[0]
-		repoName := parts[1]
-		// TODO: handle err
-		content, _, _ := m.client.Repositories.GetReadme(context.Background(), owner, repoName, nil)
-		markdown, _ := content.GetContent()
+			return repoReadyMsg{content: markdown}
+		},
+	)
+}
 
-		return RepoReadyMsg{content: markdown}
-	}
+func repoLoadingCmd() tea.Msg {
+	return repoLoadingMsg{}
 }

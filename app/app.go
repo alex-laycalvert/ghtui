@@ -14,11 +14,6 @@ import (
 	"github.com/alex-laycalvert/ghtui/ui/pages/repopage"
 )
 
-const (
-	repoPageComponent   components.ComponentName = "Repo"
-	issuesPageComponent components.ComponentName = "Issues"
-)
-
 type App struct {
 	model appModel
 }
@@ -34,23 +29,21 @@ func New(token string, repoName string) (*App, error) {
 	pageWidth := width - 6
 	pageHeight := height - 6
 
-	pages := components.NewComponentGroup(
-		components.NameComponent(
-			repoPageComponent,
-			repopage.NewRepoPage(client, repoName, pageWidth, pageHeight),
-		),
-		components.NameComponent(
-			issuesPageComponent,
-			issuespage.NewIssuesPage(client, repoName, pageWidth, pageHeight),
-		),
-	)
+	repo := repopage.NewRepoPage("Repo", client, repoName, pageWidth, pageHeight)
+	issues := issuespage.NewIssuesPage("Issues", client, repoName, pageWidth, pageHeight)
 
 	model := appModel{
 		client: client,
 		repo:   repoName,
 		width:  width,
 		height: height,
-		pages:  pages,
+
+		pageGroup: components.NewComponentGroup(
+			repo,
+			issues,
+		),
+		issuesPage: issues.ID(),
+		repoPage:   repo.ID(),
 	}
 
 	return &App{model: model}, nil
@@ -70,11 +63,13 @@ type appModel struct {
 	client *github.Client
 	repo   string
 
-	pages components.ComponentGroup
+	pageGroup  components.ComponentGroup
+	issuesPage string
+	repoPage   string
 }
 
 func (model appModel) Init() tea.Cmd {
-	return model.pages.Init()
+	return model.pageGroup.Init()
 }
 
 func (model appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -84,16 +79,14 @@ func (model appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			return model, tea.Quit
 		case "tab":
-			model.pages.FocusNext()
-			return model, model.pages.GetFocusedComponent().Init()
+			return model, model.pageGroup.FocusNext()
 		case "shift+tab":
-			model.pages.FocusPrevious()
-			return model, model.pages.GetFocusedComponent().Init()
+			return model, model.pageGroup.FocusPrevious()
 		default:
-			return model, model.pages.UpdateFocused(msg)
+			return model, model.pageGroup.UpdateFocused(msg)
 		}
 	default:
-		return model, model.pages.UpdateFocused(msg)
+		return model, model.pageGroup.UpdateFocused(msg)
 	}
 }
 
@@ -122,17 +115,17 @@ func (model appModel) View() string {
 
 	var renderedTabs []string
 
-	pages := model.pages.GetComponents()
-	currentPage := model.pages.GetFocusedComponent()
+	pages := model.pageGroup.GetComponents()
+	currentPage := model.pageGroup.GetFocusedComponent()
 	for _, t := range pages {
 		var style lipgloss.Style
-		isActive := t.Name() == currentPage.Name()
+		isActive := t.ID() == currentPage.ID()
 		if isActive {
 			style = activeTabStyle
 		} else {
 			style = inactiveTabStyle
 		}
-		renderedTabs = append(renderedTabs, style.Render(string(t.Name())))
+		renderedTabs = append(renderedTabs, style.Render(string(t.ID())))
 	}
 
 	header := lipgloss.NewStyle().

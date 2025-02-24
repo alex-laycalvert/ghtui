@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/glamour v0.8.0
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/google/go-github/v69 v69.2.0
+	github.com/google/uuid v1.6.0
 	golang.org/x/term v0.29.0
 )
 
