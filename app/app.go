@@ -2,6 +2,7 @@ package app
 
 import (
 	"os"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -66,14 +67,42 @@ type appModel struct {
 	pageGroup  utils.ComponentGroup
 	issuesPage string
 	repoPage   string
+
+	updates int
 }
 
 func (model appModel) Init() tea.Cmd {
-	return model.pageGroup.Init()
+	return tea.Batch(
+		model.pageGroup.FocusOn(model.repoPage),
+		model.pageGroup.Init(),
+	)
 }
 
 func (model appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case utils.FocusMsg:
+		return model, model.pageGroup.UpdateAll(msg)
+	case utils.BlurMsg:
+		return model, model.pageGroup.UpdateAll(msg)
+	case utils.UpdateSizeMsg:
+		return model, model.pageGroup.UpdateAll(msg)
+	case tea.WindowSizeMsg:
+		model.width = msg.Width
+		model.height = msg.Height
+		pageWidth := msg.Width - 6
+		pageHeight := msg.Height - 6
+		return model, tea.Batch(
+			model.pageGroup.Update(model.issuesPage, utils.UpdateSizeMsg{
+				ID:     model.issuesPage,
+				Width:  pageWidth,
+				Height: pageHeight,
+			}),
+			model.pageGroup.Update(model.repoPage, utils.UpdateSizeMsg{
+				ID:     model.repoPage,
+				Width:  pageWidth,
+				Height: pageHeight,
+			}),
+		)
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
 		case "ctrl+c":
@@ -136,12 +165,10 @@ func (model appModel) View() string {
 		lipgloss.Center,
 		lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...),
 		header,
+		"  "+strconv.Itoa(model.updates),
 	)
 	doc.WriteString(row + "\n")
-	doc.WriteString(
-		windowStyle.
-			Render(currentPage.View()),
-	)
+	doc.WriteString(windowStyle.Render(currentPage.View()))
 	return docStyle.
 		Width(model.width).
 		Height(model.height).

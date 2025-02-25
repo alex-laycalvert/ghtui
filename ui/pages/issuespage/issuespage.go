@@ -101,7 +101,71 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.id != msg.ID {
 			return m, m.componentGroup.UpdateFocused(msg)
 		}
-		return m, nil
+
+		m.selectedIssue = nil
+		return m, tea.Batch(
+			m.componentGroup.FocusOn(m.issuesListComponent),
+			m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
+				ID:    m.issuesListComponent,
+				Width: m.width,
+			}),
+			m.componentGroup.Update(m.issuesListComponent, components.IssuesListResetViewportMsg{}),
+		)
+	case utils.UpdateSizeMsg:
+		if m.id != msg.ID {
+			return m, nil
+		}
+
+		if msg.Width == 0 && msg.Height == 0 {
+			return m, nil
+		}
+
+		if msg.Width > 0 {
+			m.width = msg.Width
+		}
+		if msg.Height > 0 {
+			m.height = msg.Height
+		}
+
+		cmds := []tea.Cmd{
+			m.componentGroup.Update(m.markdownViewerComponent, utils.UpdateSizeMsg{
+				ID:     m.markdownViewerComponent,
+				Width:  m.width / 2,
+				Height: m.height,
+			}),
+		}
+
+		width := m.width
+		if m.selectedIssue != nil {
+			width = m.width / 2
+		}
+		cmds = append(cmds,
+			m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
+				ID:     m.issuesListComponent,
+				Width:  width,
+				Height: m.height,
+			}),
+			m.componentGroup.Update(m.textInputComponent, utils.UpdateSizeMsg{
+				ID:    m.textInputComponent,
+				Width: width,
+			}),
+		)
+
+		m.componentGroup.Update(m.markdownViewerComponent, utils.UpdateSizeMsg{
+			ID:     m.markdownViewerComponent,
+			Width:  m.width / 2,
+			Height: m.height,
+		})
+		m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
+			ID:     m.issuesListComponent,
+			Width:  width,
+			Height: m.height,
+		})
+		m.componentGroup.Update(m.textInputComponent, utils.UpdateSizeMsg{
+			ID:    m.textInputComponent,
+			Width: width,
+		})
+		return m, tea.Batch(cmds...)
 	case tea.KeyMsg:
 		switch k := msg.String(); {
 		case k == "enter" && m.state == utils.ReadyState && m.componentGroup.IsFocused(m.issuesListComponent):
@@ -109,9 +173,11 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectedIssue = issue
 			return m, tea.Sequence(
 				m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
+					ID:    m.issuesListComponent,
 					Width: m.width / 2,
 				}),
 				m.componentGroup.Update(m.textInputComponent, utils.UpdateSizeMsg{
+					ID:    m.textInputComponent,
 					Width: m.width / 2,
 				}),
 				m.componentGroup.Update(m.markdownViewerComponent, components.MarkdownViewerSetContentMsg{
@@ -123,6 +189,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.componentGroup.IsFocused(m.textInputComponent) {
 				return m, tea.Sequence(
 					m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
+						ID:     m.issuesListComponent,
 						Height: m.height,
 					}),
 					m.componentGroup.FocusOn(m.issuesListComponent),
@@ -131,6 +198,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedIssue = nil
 				return m, tea.Sequence(
 					m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
+						ID:    m.issuesListComponent,
 						Width: m.width,
 					}),
 					m.componentGroup.FocusOn(m.issuesListComponent),
@@ -164,6 +232,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case k == "/" && m.state == utils.ReadyState && !m.componentGroup.IsFocused(m.textInputComponent):
 			return m, tea.Sequence(
 				m.componentGroup.Update(m.issuesListComponent, utils.UpdateSizeMsg{
+					ID:     m.issuesListComponent,
 					Height: m.height - 1,
 				}),
 				m.componentGroup.FocusOn(m.textInputComponent),
@@ -194,7 +263,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = utils.LoadingState
 		return m, m.componentGroup.FocusOn(m.spinnerComponent)
 	default:
-		return m, m.componentGroup.UpdateFocused(msg)
+		return m, m.componentGroup.UpdateAll(msg)
 	}
 }
 

@@ -70,17 +70,45 @@ func (m RepoPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case utils.FocusMsg:
 		if m.id != msg.ID {
-			return m, m.componentGroup.UpdateFocused(msg)
+			return m, m.componentGroup.UpdateAll(msg)
 		}
+
 		if m.isLoaded {
 			return m, nil
 		}
-		return m, m.fetchRepo()
+		return m, tea.Batch(
+			m.fetchRepo(),
+			m.componentGroup.FocusOn(m.markdownViewerComponent),
+		)
 	case utils.BlurMsg:
 		if m.id != msg.ID {
-			return m, m.componentGroup.UpdateFocused(msg)
+			return m, m.componentGroup.UpdateAll(msg)
 		}
+
 		return m, nil
+	case utils.UpdateSizeMsg:
+		if m.id != msg.ID {
+			return m, m.componentGroup.UpdateAll(msg)
+		}
+
+		if msg.Width == 0 && msg.Height == 0 {
+			return m, nil
+		}
+
+		if msg.Width > 0 {
+			m.width = msg.Width
+		}
+		if msg.Height > 0 {
+			m.height = msg.Height
+		}
+
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, m.componentGroup.Update(m.markdownViewerComponent, utils.UpdateSizeMsg{
+			ID:     m.markdownViewerComponent,
+			Width:  m.width,
+			Height: m.height,
+		})
 	case tea.KeyMsg:
 		switch keypress := msg.String(); keypress {
 		default:
@@ -100,8 +128,7 @@ func (m RepoPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = utils.LoadingState
 		return m, m.componentGroup.FocusOn(m.spinnerComponent)
 	default:
-		cmd := m.componentGroup.Update(m.spinnerComponent, msg)
-		return m, cmd
+		return m, m.componentGroup.UpdateAll(msg)
 	}
 }
 

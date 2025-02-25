@@ -34,6 +34,9 @@ func (m spinnerModel) Init() tea.Cmd {
 func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case utils.FocusMsg:
+		if m.id != msg.ID {
+			return m, nil
+		}
 		return m, m.spinner.Tick
 	default:
 		var cmd tea.Cmd

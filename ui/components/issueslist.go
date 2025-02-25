@@ -91,6 +91,10 @@ func (m IssuesListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case utils.UpdateSizeMsg:
+		if m.id != msg.ID {
+			return m, nil
+		}
+
 		if msg.Width > 0 {
 			m.width = msg.Width
 		}

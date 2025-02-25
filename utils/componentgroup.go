@@ -96,15 +96,20 @@ func (c ComponentGroup) IsFocused(id string) bool {
 	return c.GetFocusedComponentName() == id
 }
 
+// FocusOn will set the component with the given id as the focused component.
+//
+// It sends a `utils.FocusMsg{ID: id}` to the focused component, and a `utils.BlurMsg{ID: id}`
+// to all other components.
 func (c *ComponentGroup) FocusOn(id string) tea.Cmd {
 	cmds := make([]tea.Cmd, len(c.components))
 	for i, comp := range c.components {
+		compID := comp.ID()
 		var msg tea.Msg
 		if comp.ID() == id {
-			msg = FocusMsg{ID: id}
+			msg = FocusMsg{ID: compID}
 			c.focus = i
 		} else {
-			msg = BlurMsg{ID: id}
+			msg = BlurMsg{ID: compID}
 		}
 		var m tea.Model
 		m, cmd := comp.Update(msg)
@@ -114,25 +119,23 @@ func (c *ComponentGroup) FocusOn(id string) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
+// FocusNext behaves the same as FocusOn but will focus the next sequential component in the group,
+// based on the order originally provided to `NewComponentGroup`.
+//
+// Wraps to the beginning of the group if the last component is focused.
 func (c *ComponentGroup) FocusNext() tea.Cmd {
-	c.focus = (c.focus + 1) % len(c.components)
-	var m tea.Model
-	m, cmd := c.components[c.focus].Update(
-		FocusMsg{ID: c.components[c.focus].ID()},
-	)
-	c.components[c.focus] = m.(Component)
-	return cmd
+	nextIndex := (c.focus + 1) % len(c.components)
+	return c.FocusOn(c.components[nextIndex].ID())
 }
 
+// FocusPrevious behaves the same as FocusOn but will focus the previous sequential component in the group,
+// based on the order originally provided to `NewComponentGroup`.
+//
+// Wraps to the end of the group if the first component is focused.
 func (c *ComponentGroup) FocusPrevious() tea.Cmd {
-	c.focus = c.focus - 1
-	if c.focus < 0 {
-		c.focus = len(c.components) - 1
+	previousIndex := c.focus - 1
+	if previousIndex < 0 {
+		previousIndex = len(c.components) - 1
 	}
-	var m tea.Model
-	m, cmd := c.components[c.focus].Update(
-		BlurMsg{ID: c.components[c.focus].ID()},
-	)
-	c.components[c.focus] = m.(Component)
-	return cmd
+	return c.FocusOn(c.components[previousIndex].ID())
 }

@@ -39,7 +39,7 @@ func NewTextInputComponent(label string, width int) TextInputComponent {
 }
 
 func (m TextInputComponent) ID() string {
-    return m.id
+	return m.id
 }
 
 func (m TextInputComponent) Init() tea.Cmd {
@@ -86,6 +86,10 @@ func (m TextInputComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.value = ""
 		return m, nil
 	case utils.UpdateSizeMsg:
+		if m.id != msg.ID {
+			return m, nil
+		}
+
 		if msg.Width > 0 {
 			m.width = msg.Width
 		}
