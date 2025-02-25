@@ -181,7 +181,7 @@ func (m IssuesPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Width: m.width / 2,
 				}),
 				m.componentGroup.Update(m.markdownViewerComponent, components.MarkdownViewerSetContentMsg{
-					Content: *issue.Body,
+					Content: issue.GetBody(),
 				}),
 				m.componentGroup.FocusOn(m.markdownViewerComponent),
 			)
